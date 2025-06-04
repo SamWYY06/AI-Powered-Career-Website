@@ -176,11 +176,6 @@ st.markdown("""
         font-size: 2.5rem;
         font-weight: 800;
         color: white;
-        text-shadow: 0 4px 8px rgba(0,0,0,0.3);
-        background: linear-gradient(45deg, #ffffff, #e0e7ff, #fbbf24);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
         cursor: pointer;
         transition: all 0.3s ease;
         display: flex;
@@ -619,7 +614,7 @@ if "page" not in st.session_state:
 # Navigation bar
 st.markdown("""
 <div class="navbar">
-    <div class="logo">👜 CareerFinder AI</div>
+    <div class="logo">👜 CareerFinder</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -730,116 +725,123 @@ with st.form(key=f"form_page_{st.session_state.page}"):
             st.session_state.page += 1
             st.rerun()
         else:
-            # Collect all responses
-            combined_input = " ".join([
-                st.session_state.get(f"q{i+1}", "") for i in range(len(questions_with_examples))
-            ])
+            # Set flag to show results
+            st.session_state.show_results = True
+
+# Handle results display OUTSIDE the form
+if st.session_state.get('show_results', False):
+    # Collect all responses
+    combined_input = " ".join([
+        st.session_state.get(f"q{i+1}", "") for i in range(len(questions_with_examples))
+    ])
+    
+    if combined_input.strip():
+        # Show loading state
+        with st.spinner("🔍 Analyzing your responses with AI..."):
+            results_df = recommend_careers(
+                combined_input, df, vectorizer, tfidf_matrix, sbert_embeddings
+            )
+        
+        # Display results
+        st.markdown("""
+        <div class="results-container">
+            <h2 class="results-title">🎯 Your Personalized Career Recommendations</h2>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.success("✨ Analysis complete! Here are your top career matches based on your responses:")
+        
+        # Enhanced dataframe display
+        st.dataframe(
+            results_df,
+            use_container_width=True,
+            hide_index=True
+        )
+        
+        # Additional insights
+        if not results_df.empty:
+            top_match = results_df.iloc[0]
+            st.info(f"""
+            🏆 **Top Match**: {top_match['Job Title']}
             
-            if combined_input.strip():
-                # Show loading state
-                with st.spinner("🔍 Analyzing your responses with AI..."):
-                    results_df = recommend_careers(
-                        combined_input, df, vectorizer, tfidf_matrix, sbert_embeddings
-                    )
-                
-                # Display results
-                st.markdown("""
-                <div class="results-container">
-                    <h2 class="results-title">🎯 Your Personalized Career Recommendations</h2>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                st.success("✨ Analysis complete! Here are your top career matches based on your responses:")
-                
-                # Enhanced dataframe display
+            💰 **Salary Range**: {top_match['Salary Range (Average)']}
+            
+            🎯 **Match Score**: {top_match['Combined Score']:.1%}
+
+            🔧 **Key Skills**: {top_match['Skills'][:150]}{'...' if len(top_match['Skills']) > 150 else ''}
+            """)
+            
+            # Show detailed breakdown for top 3 matches
+            st.markdown("### 📊 Detailed Career Analysis")
+            
+            for i, (_, career) in enumerate(results_df.iterrows()):
+                with st.expander(f"🎯 **{career['Job Title']}** - Match Score: {career['Combined Score']:.1%}", expanded=(i==0)):
+                    col1, col2 = st.columns([1, 1])
+                    
+                    with col1:
+                        st.markdown(f"""
+                        **💼 Role Overview:**
+                        {career['Role']}
+                        
+                        **💰 Salary Range:**
+                        {career['Salary Range (Average)']}
+                        
+                        **🎯 AI Match Scores:**
+                        - TF-IDF Score: {career['TF-IDF Score']:.3f}
+                        - SBERT Score: {career['SBERT Score']:.3f}
+                        - Combined Score: {career['Combined Score']:.3f}
+                        """)
+                    
+                    with col2:
+                        st.markdown(f"""
+                        **🔧 Required Skills:**
+                        {career['Skills']}
+                        
+                        **📋 Key Responsibilities:**
+                        {career['Responsibilities'][:300]}{'...' if len(career['Responsibilities']) > 300 else ''}
+                        """)
+                    
+                    st.markdown(f"""
+                    **📝 Job Description:**
+                    {career['Job Description'][:400]}{'...' if len(career['Job Description']) > 400 else ''}
+                    """)
+        
+        # Action buttons - NOW OUTSIDE THE FORM
+        st.markdown("### 🚀 Next Steps")
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            if st.button("🔄 Try New Search", key="new_search"):
+                # Reset all session state
+                for key in list(st.session_state.keys()):
+                    del st.session_state[key]
+                st.session_state.page = 0
+                st.rerun()
+        
+        with col2:
+            if st.button("📊 View All Results", key="view_all"):
+                st.markdown("### 📈 Complete Results Table")
                 st.dataframe(
                     results_df,
                     use_container_width=True,
                     hide_index=True
                 )
-                
-                # Additional insights
-                if not results_df.empty:
-                    top_match = results_df.iloc[0]
-                    st.info(f"""
-                    🏆 **Top Match**: {top_match['Job Title']}
-                    
-                    💰 **Salary Range**: {top_match['Salary Range (Average)']}
-                    
-                    🎯 **Match Score**: {top_match['Combined Score']:.1%}
-
-                    🔧 **Key Skills**: {top_match['Skills'][:150]}{'...' if len(top_match['Skills']) > 150 else ''}
-                    """)
-                    
-                    # Show detailed breakdown for top 3 matches
-                    st.markdown("### 📊 Detailed Career Analysis")
-                    
-                    for i, (_, career) in enumerate(results_df.iterrows()):
-                        with st.expander(f"🎯 **{career['Job Title']}** - Match Score: {career['Combined Score']:.1%}", expanded=(i==0)):
-                            col1, col2 = st.columns([1, 1])
-                            
-                            with col1:
-                                st.markdown(f"""
-                                **💼 Role Overview:**
-                                {career['Role']}
-                                
-                                **💰 Salary Range:**
-                                {career['Salary Range (Average)']}
-                                
-                                **🎯 AI Match Scores:**
-                                - TF-IDF Score: {career['TF-IDF Score']:.3f}
-                                - SBERT Score: {career['SBERT Score']:.3f}
-                                - Combined Score: {career['Combined Score']:.3f}
-                                """)
-                            
-                            with col2:
-                                st.markdown(f"""
-                                **🔧 Required Skills:**
-                                {career['Skills']}
-                                
-                                **📋 Key Responsibilities:**
-                                {career['Responsibilities'][:300]}{'...' if len(career['Responsibilities']) > 300 else ''}
-                                """)
-                            
-                            st.markdown(f"""
-                            **📝 Job Description:**
-                            {career['Job Description'][:400]}{'...' if len(career['Job Description']) > 400 else ''}
-                            """)
-                
-                # Action buttons
-                st.markdown("### 🚀 Next Steps")
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
-                    if st.button("🔄 Try New Search", key="new_search"):
-                        # Reset all session state
-                        for key in list(st.session_state.keys()):
-                            del st.session_state[key]
-                        st.session_state.page = 0
-                        st.rerun()
-                
-                with col2:
-                    if st.button("📊 View All Results", key="view_all"):
-                        st.markdown("### 📈 Complete Results Table")
-                        st.dataframe(
-                            results_df,
-                            use_container_width=True,
-                            hide_index=True
-                        )
-                
-                with col3:
-                    # Download results as CSV
-                    csv_data = results_df.to_csv(index=False)
-                    st.download_button(
-                        label="💾 Download Results",
-                        data=csv_data,
-                        file_name="career_recommendations.csv",
-                        mime="text/csv",
-                        key="download_results"
-                    )
-                
-            else:
-                st.warning("⚠️ Please provide answers to the questions to get personalized recommendations.")
+        
+        with col3:
+            # Download results as CSV
+            csv_data = results_df.to_csv(index=False)
+            st.download_button(
+                label="💾 Download Results",
+                data=csv_data,
+                file_name="career_recommendations.csv",
+                mime="text/csv",
+                key="download_results"
+            )
+        
+    else:
+        st.warning("⚠️ Please provide answers to the questions to get personalized recommendations.")
+        # Reset the flag if no input provided
+        st.session_state.show_results = False
 
 # Close content container
 st.markdown('</div>', unsafe_allow_html=True)
@@ -864,56 +866,3 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Add some helpful tips in sidebar if user wants more info
-with st.sidebar:
-    st.markdown("### 💡 Tips for Better Results")
-    st.markdown("""
-    - **Be specific** about your skills and interests
-    - **Include both technical and soft skills**
-    - **Mention your experience level**
-    - **Think about your ideal work environment**
-    - **Consider your long-term career goals**
-    """)
-    
-    st.markdown("### 🔍 How It Works")
-    st.markdown("""
-    Our AI system uses:
-    - **TF-IDF** for keyword matching
-    - **SBERT** for semantic understanding
-    - **Combined scoring** for accurate recommendations
-    - **Cosine similarity** for relevance ranking
-    """)
-    
-    st.markdown("### 📊 About the Data")
-    st.markdown(f"""
-    - **{len(df)} career profiles** in our database
-    - Regular updates with market trends
-    - Salary data from multiple sources
-    - Skills mapped to job requirements
-    """)
-
-# Add keyboard shortcuts and accessibility
-st.markdown("""
-<script>
-document.addEventListener('keydown', function(e) {
-    // Press 'n' for next page
-    if (e.key === 'n' && !e.ctrlKey && !e.altKey) {
-        const nextBtn = document.querySelector('button[kind="primary"]');
-        if (nextBtn) nextBtn.click();
-    }
-    
-    // Press 'b' for back
-    if (e.key === 'b' && !e.ctrlKey && !e.altKey) {
-        const backBtn = document.querySelector('button[kind="secondary"]');
-        if (backBtn) backBtn.click();
-    }
-});
-
-// Add focus management for better accessibility
-document.querySelectorAll('textarea').forEach(textarea => {
-    textarea.addEventListener('focus', function() {
-        this.parentElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    });
-});
-</script>
-""", unsafe_allow_html=True)
